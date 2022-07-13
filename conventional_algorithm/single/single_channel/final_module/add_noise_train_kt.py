@@ -1,0 +1,84 @@
+"""
+2022.05.30. lsh
+making noisy for train
+- randomly choice (snr, ntype)
+- using txt list (clean speech)
+"""
+
+import numpy as np
+import random
+import scipy
+import scipy.io.wavfile as wav
+import os
+import random
+import shutil
+
+def add_noise(sig, noise, snr):
+    # choose random section in noise wav file
+    if len(noise) < len(sig):
+        # print(noise, len(noise))
+        noise = np.append(noise, noise)
+        # print(noise, len(noise))
+        ibgn = random.randint(0, len(noise) - len(sig))
+    else:
+        ibgn = random.randint(0, len(noise) - len(sig))
+    noise = np.array(noise[ibgn:ibgn + len(sig)])
+
+    # scaling factor calculation
+    p_sig = np.mean(np.square(sig))
+    p_noise = np.mean(np.square(noise))
+    scale_factor = np.sqrt((p_sig / np.power(10, snr / 10.0)) / p_noise)
+
+    # add noise to the signal according to the SNR
+    noisy = sig + noise * scale_factor
+    return noisy
+
+sr = 16000
+
+snr = [20, 15, 10, 5, 0, -5]
+ntype = ["aurora4_airport_1", "aurora4_lobby_1", "babble", "destroyerops", "DLIVING", "factory1", "leopard", "pink", "SPSQUARE", "STRAFFIC", "volvo"]
+
+file = open("/home/sunghyunlee/workspace/data/ksponspeech/train_wav/kor_ai_speech_full", "r")
+data = file.read().splitlines()
+name = []
+
+for i in range(len(data)):
+    r_snr = random.choice(snr)
+    r_ntype = random.choice(ntype)
+
+    sampling_rate, speech = wav.read(data[i])
+    # sampling_rate, noise = wav.read('{}.wav'.format(ntype[3]))
+    sampling_rate, noise = wav.read('{}.wav'.format(r_ntype))
+
+    speech = speech / 32768.0
+    noise = noise / 32768.0
+    # noisy = add_noise(speech, noise, snr[1])
+    noisy = add_noise(speech, noise, r_snr)
+
+    # make new path (saving place)
+    origin_path = data[i]
+    split_path = origin_path.split('/')
+    erase_wav = origin_path.split(split_path[-1])
+    filepath = erase_wav[0].replace('train_wav', 'train_wav/noisy')
+    # filepath = '/home/sunghyunlee/workspace/data/ksponspeech/train_wav/noisy/' + '{}'.format(j) + '/{}dB'.format(k)  # change file path
+    if not os.path.exists(filepath):            # if not file there
+        os.makedirs(filepath)                   # make same path' file
+
+    # os.system('rm -rf %s' % filepath)         # filepath file remove(rm) or filepath folder remove(rm -rf)
+
+    name = data[i].split('.')
+    # file_name = os.path.basename(os.path.dirname(os.path.dirname(name[0]))) + '_' + os.path.basename(os.path.dirname(name[0])) + '_' + os.path.basename(name[0])
+    file_name = split_path[-1].split('.')[0]
+
+    scipy.io.wavfile.write(filepath + os.sep + file_name + '_{}_{}dB.wav'.format(r_ntype, r_snr), sr, np.asarray(noisy * 32768, dtype=np.int16))
+    print(filepath + file_name + '_{}_{}dB.wav'.format(r_ntype, r_snr))
+
+        # #위 작업 이후 생성된 noisy 파일 txt에 리스트로 저장하기
+        # f = open("/home/leesunghyun/Downloads/enhancement/noisy_wavfile/babble/0dB/noisy_wav.txt", 'w')
+        # for(path, dir, files) in os.walk("/home/leesunghyun/Downloads/enhancement/noisy_wavfile/babble/0dB"):
+        #     for filename in files:
+        #         ext = os.path.splitext(filename)[-1]
+        #         if ext == '.wav':
+        #             data = "%s/%s\n" %(path, filename)  # .wav 파일을 한줄씩 all_wav.txt 파일에 저장
+        #             f.writelines([data])
+        # f.close()
